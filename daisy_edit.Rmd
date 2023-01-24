@@ -1,0 +1,283 @@
+---
+title: "daisy_average"
+author: "garezana"
+date: "12/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Libraries
+library(tidyverse)
+library(viridis)
+library(patchwork)
+library(hrbrthemes)
+library(circlize)
+library(stringr)
+library(cluster)
+library(dplyr)
+library(ggplot2)
+library(Rtsne)
+library(rlang)
+library(factoextra)
+library(ggpubr)
+#Data
+df=read.csv("/Users/virnaliz/Desktop/Garezana/gideon_data/icd_gideon_country.csv")
+```
+
+
+```{r}
+#functions
+clean_strings = function(data){
+  long_string = gsub("[^-,/a-zA-Z0-9\\s]+", "", data, perl = TRUE)
+  country_vect = str_trim(unlist(strsplit(long_string, split=",")))
+  country_vect[! country_vect %in% c('Worldwide')]
+}
+
+make_vector_of_lists = function(data,feature,feature_name) {
+result_short= data.frame()
+for (i in 1:length(data[[feature]])){
+    x=clean_strings(data[[feature]][i])
+    frame = data.frame(data$disease[i], I(list(x)))
+    names(frame) = c("name",feature_name)
+    result_short <- rbind(result_short,frame)
+    reserv_list$reservoir_list 
+}
+return(result_short)
+}
+
+
+
+make_clusters = function(df, k, n = nrow(df)-1, metric_type){
+  
+  gower_dist = daisy(df, metric = "gower")
+  max_sil_width_and_plot = plot_sil_width(gower_dist,n)
+  k = max_sil_width_and_plot
+  gower_mat = as.matrix(gower_dist)
+  pam_fit = pam(gower_dist, diss = TRUE, k)
+  pam_results = df %>%
+    mutate(cluster = pam_fit$clustering) %>%
+    group_by(cluster) %>%
+    do(the_summary = summary(.))
+
+  return (list (gower_dist = gower_dist,pam_fit=pam_fit,pam_results=pam_results))
+}
+
+plot_sil_width = function(gower_dist, n){
+  sil_width = c(NA)
+  for(i in 2:n){
+    pam_fit1 = pam(gower_dist, diss = TRUE, k = i)
+    sil_width[i] = pam_fit1$silinfo$avg.width
+  }
+  max_sil_width = which(sil_width == max(sil_width, na.rm = TRUE)) 
+  sil_plot = plot(1:n, sil_width,
+       xlab = paste0("Number of clusters", " (max:", max_sil_width,")"),
+       ylab = "Silhouette Width")
+
+  sil_plot = sil_plot + lines(1:n, sil_width)+ abline(v=max_sil_width , col="blue")
+  
+  print(sil_plot)
+  return(max_sil_width)
+}
+
+calculate_disim_index =  function(list_data_frame, list_feature_name){
+disim_index = vector()
+for (i in 1:(nrow(list_data_frame)-1)){
+  for (j in (i+1):nrow(list_data_frame)){
+    country_vect = list_data_frame[[list_feature_name]][[i]]
+    country_vect2 = list_data_frame[[list_feature_name]][[j]]
+    count_intersection = length(intersect(country_vect,country_vect2))
+    count_union = length(union(country_vect, country_vect2))
+    calc = 1 - ( count_intersection/count_union)
+    disim_index = c(disim_index, calc)
+    
+  }} 
+return (disim_index)
+}
+
+disim_index = vector()
+for (i in 1:(nrow(result_short)-1)){
+  for (j in (i+1):nrow(result_short)){
+    country_vect = result_short$country_list[[i]]
+    country_vect2 = result_short$country_list[[j]]
+    count_intersection = length(intersect(country_vect,country_vect2))
+    count_union = length(union(country_vect, country_vect2))
+    calc = 1 - ( count_intersection/count_union)
+    disim_index = c(disim_index, calc)
+    
+  }} 
+
+adding_to_daisy= function(daisy_disim, list_disims){
+  daisy_feat_num = length(attributes(daisy_disim)$Types)
+  combined_disim = (daisy_feat_num * daisy_disim + list_disims)/ (daisy_feat_num + 1)
+ return(combined_disim)
+}
+
+
+```
+
+```{r}
+#Making df of country lists
+result_short= data.frame()
+for (i in 1:length(df$country_names)){
+    x=clean_strings(df$country_names[i])
+    frame = data.frame(df$disease[i], I(list(x)))
+    names(frame) = c("name","country_list")
+    result_short <- rbind(result_short,frame)
+}
+
+```
+```{r}
+#calculating dissimilarity index
+disim_index = vector()
+for (i in 1:(nrow(result_short)-1)){
+  for (j in (i+1):nrow(result_short)){
+    country_vect = result_short$country_list[[i]]
+    country_vect2 = result_short$country_list[[j]]
+    count_intersection = length(intersect(country_vect,country_vect2))
+    count_union = length(union(country_vect, country_vect2))
+    calc = 1 - ( count_intersection/count_union)
+    disim_index = c(disim_index, calc)
+    
+  }} 
+
+   country_vect = result_short$country_list[[i]]
+    country_vect2 = result_short$country_list[[j]]
+    count_intersection = length(intersect(country_vect,country_vect2))
+    count_union = length(union(country_vect, country_vect2))
+    
+
+```
+
+```{r}
+data=df %>% filter(!is.na(vector_gen_list_single))
+vbd_agentfam=subset(data, select = -c(X,country_names, country_codes,calc))
+vbd_agentfam=vbd_agentfam%>% mutate_if(is.logical,as.factor) %>%  mutate_if( is.character,as.factor)
+
+daisy_data=make_clusters(vbd_agentfam,16)
+
+
+length(attributes(daisy_data)$Types)
+
+length(attributes(daisy_data$gower_dist)$Types)
+
+```
+
+```{r updating daisy}
+
+updated_disim_mat = adding_to_daisy(daisy_data,test_single)
+```
+
+
+```{r testing}
+data$agent_list_single = as.factor(data$agent_list_single)
+
+#single_feature_daisy_mat = make_clusters(data["agent_list_single"], k = 1)
+
+daisy_test = daisy(data["agent_list_single"], metric="gower")
+
+
+result_short_test= data.frame()
+for (i in 1:length(data$agent_list_single)){
+    x=clean_strings(data$agent_list_single[i])
+    frame = data.frame(data$agent_list_single[i], I(list(x)))
+    names(frame) = c("nonlist","agent_list_test")
+    result_short_test <- rbind(result_short_test,frame)
+}
+
+test_disim_index = calculate_disim_index(result_short_test,"agent_list_test")
+
+agent_list
+
+#Standard cat vari run daisy. Force single items into lists. Unit testing.
+
+daisy_test 
+
+for (i in 1:length(test_disim_index)){
+  if(!(identical(daisy_test[i], test_disim_index[i]))){
+    paste("NOT same in:",i)
+  }
+
+}
+```
+
+
+```{r}
+all_lists_data = read.csv("/Users/virnaliz/Desktop/Garezana/gideon_data/VBD_parsed.csv")
+
+sdcdc=anti_join(all_lists_data,data,by="disease")
+
+
+
+#vbd_agentfam=vbd_agentfam%>% mutate_if(is.logical,as.factor) %>%  mutate_if( is.character,as.factor)
+#reserv_list$reservoir_list = as.factor(data$agent_list_single)
+
+
+reservoir_list = make_vector_of_lists(all_lists_data, "reservoir_list","reservoir_list")
+
+vector_gen_list = make_vector_of_lists(all_lists_data, "vector_gen_list","vector_gen_list")
+
+vehicle_list = make_vector_of_lists(all_lists_data, "vehicle_list","vehicle_list")
+
+vector_list = make_vector_of_lists(all_lists_data, "vector_list","vector_list")
+
+agent_list = make_vector_of_lists(all_lists_data, "agent_list","agent_list")
+
+
+```
+
+```{r}
+
+reserv_list_d=calculate_disim_index(reserv_list,"reservoir_list")
+
+vector_gen_list_d=calculate_disim_index(vector_gen_list,"vector_gen_list")
+
+vehicle_list_d=calculate_disim_index(agent_list,"agent_list")
+
+vector_list_d=calculate_disim_index(vector_list,"vector_list")
+
+agent_list_d=calculate_disim_index(agent_list,"agent_list")
+
+str(agent_list_d)
+```
+
+
+```{r}
+
+data_non_list = all_lists_data %>% select("min_incubation", "max_incubation")
+
+data_non_list$min_incubation[is.na(data_non_list$min_incubation)] = median(data_non_list$min_incubation, na.rm=TRUE)
+make_clusters(data_non_list,2)
+
+data_non_list$max_incubation[is.na(data_non_list$max_incubation)] = median(data_non_list$max_incubation, na.rm=TRUE)
+make_clusters(data_non_list,2)
+
+
+non_list_daisy = make_clusters(data_non_list, "gower")
+
+updated_disim_mat = adding_to_daisy(non_list_daisy$gower_dist,reserv_list_d)
+attributes(updated_disim_mat)$Types=append(attributes(updated_disim_mat)$Types, "I")
+
+updated_disim_mat1 = adding_to_daisy(updated_disim_mat,vector_gen_list_d)
+attributes(updated_disim_mat1)$Types=append(attributes(updated_disim_mat1)$Types, "I")
+
+updated_disim_mat2 = adding_to_daisy(updated_disim_mat1,vehicle_list_d)
+attributes(updated_disim_mat2)$Types=append(attributes(updated_disim_mat2)$Types, "I")
+
+updated_disim_mat3 = adding_to_daisy(updated_disim_mat2,vector_list_d)
+attributes(updated_disim_mat3)$Types=append(attributes(updated_disim_mat3)$Types, "I")
+
+updated_disim_mat4 = adding_to_daisy(updated_disim_mat3,agent_list_d)
+attributes(updated_disim_mat4)$Types=append(attributes(updated_disim_mat4)$Types, "I")
+
+```
+
+
+
+```{r}
+library(knitr)
+
+
+
+```
+
